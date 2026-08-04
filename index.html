@@ -951,10 +951,14 @@ async function aptSearch() {
   aptStatus('검색 중…');
   try {
     const isApt = it => it.category && /아파트단지|주거용공동주택|공동주택/.test(it.category) && it.address && it.address.parcel;
-    let items = (await vwSearch(q, 'place')).filter(isApt);
-    if (!items.length) items = (await vwSearch(q + ' 아파트', 'place')).filter(isApt);
+    // 폴백: 단지가 부속시설(입구·경로당 등)로만 등록된 경우 이름에 '아파트' 등이 포함된 결과의 지번을 활용
+    const isAptish = it => it.address && it.address.parcel && /아파트|주공|맨션|빌라|타운/.test(it.title);
+    const all1 = await vwSearch(q, 'place');
+    let items = all1.filter(isApt), all2 = [];
+    if (!items.length) { all2 = await vwSearch(q + ' 아파트', 'place'); items = all2.filter(isApt); }
+    if (!items.length) items = [...all1, ...all2].filter(isAptish).map(it => ({ ...it, title: it.title.replace(/\/.*$/, '').replace(/(상가동|유치원|정문|후문)?입구$/, '') }));
     const seen = new Set();
-    items = items.filter(it => { const k = it.address.parcel.replace(/\s+/g, ''); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+    items = items.filter(it => { const k = it.address.parcel.replace(/\s+/g, '').replace(/[^0-9가-힣-]/g, ''); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
     if (!items.length) { aptStatus('검색 결과가 없습니다. 아파트명 + 동네 이름으로 다시 시도해 보세요. (예: 대치동 은마)', true); return; }
     aptOut().innerHTML = '<div class="apt-list">' + items.map((it, i) =>
       `<button type="button" class="apt-item" data-i="${i}"><span class="nm">${it.title}</span><span class="ad">${it.address.parcel}</span></button>`).join('') + '</div>';
