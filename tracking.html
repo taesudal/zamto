@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>매물 시세 트래킹 — 부동산 세제개편 계산기</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F6F2EA; --surface: #FFFFFF; --surface-2: #FBF8F2;
+    --ink: #22304A; --ink-2: #5B647A; --muted: #8C90A0;
+    --line: #E7E1D4; --line-strong: #D7CFBE;
+    --navy: #1E2F52; --navy-ink: #F4EFE6;
+    --accent: #EB6834; --accent-deep: #B04513; --accent-soft: #FBEADF;
+    --chart-blue: #2A78D6; --chart-orange: #EB6834;
+    --good: #0A7A3D; --bad: #C03528; --focus: #2A78D6;
+    --shadow: 0 1px 2px rgba(34,48,74,.05), 0 8px 24px rgba(34,48,74,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #16130F; --surface: #211E19; --surface-2: #262319;
+      --ink: #F0EBE1; --ink-2: #BDB6A8; --muted: #8E8878;
+      --line: #37322A; --line-strong: #4A443A;
+      --navy: #131E38; --navy-ink: #E9E4DA;
+      --accent: #E9713F; --accent-deep: #F49468; --accent-soft: #3A2A1E;
+      --chart-blue: #3987E5; --chart-orange: #D95926;
+      --good: #4FBE7E; --bad: #E4756A; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; line-height: 1.55; font-size: 15px; }
+  .money, td, .num { font-variant-numeric: tabular-nums; }
+  .masthead { background: var(--navy); color: var(--navy-ink); padding: 32px 20px 36px; }
+  .masthead-in { max-width: 1060px; margin: 0 auto; }
+  .eyebrow { font-size: 12px; letter-spacing: .18em; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+  .masthead h1 { margin: 0 0 8px; font-size: clamp(22px, 3.6vw, 32px); font-weight: 800; letter-spacing: -.02em; }
+  .masthead p { margin: 0; max-width: 70ch; color: color-mix(in srgb, var(--navy-ink) 78%, transparent); font-size: 14px; }
+  .masthead a { color: var(--accent); font-weight: 700; text-decoration: none; }
+  main { max-width: 1060px; margin: 0 auto; padding: 24px 20px 72px; display: grid; gap: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+  .card-head { padding: 18px 22px 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .card-head h2 { margin: 0; font-size: 17px; font-weight: 800; }
+  .card-head .sub { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; flex-basis: 100%; }
+  .card-body { padding: 16px 22px 22px; }
+  button, input, select, textarea { font: inherit; color: var(--ink); }
+  .btn { border: none; background: var(--accent); color: #fff; font-size: 13.5px; font-weight: 700; padding: 9px 16px; border-radius: 8px; cursor: pointer; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line-strong); color: var(--ink-2); }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  input[type="text"], input[type="date"], select { background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 12px; font-size: 14px; font-weight: 600; }
+  textarea { width: 100%; min-height: 130px; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px 12px; font-size: 13px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .hint { font-size: 12.5px; color: var(--muted); }
+  .hint.err { color: var(--bad); font-weight: 600; }
+
+  /* 관심 단지 목록 */
+  table.watch { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.watch th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 700; padding: 6px 10px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+  table.watch td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.watch td.r, table.watch th.r { text-align: right; white-space: nowrap; }
+  table.watch tr.sel-row { background: var(--accent-soft); }
+  .nm-btn { background: none; border: none; padding: 0; font-weight: 800; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left; }
+  .nm-btn .py { color: var(--accent-deep); font-weight: 700; font-size: 12.5px; margin-left: 4px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 8px; vertical-align: 1px; }
+  .badge.low { color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent); }
+  .badge.rt { color: var(--ink-2); border: 1px solid var(--line-strong); }
+  .delta-up { color: var(--bad); font-weight: 700; }
+  .delta-dn { color: var(--good); font-weight: 700; }
+  .delta-0 { color: var(--muted); }
+
+  /* 파싱 미리보기 */
+  table.preview { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+  table.preview th { text-align: left; font-size: 11px; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line-strong); }
+  table.preview td { padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  table.preview tr.excluded td { opacity: .45; text-decoration: line-through; }
+  .summary-box { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-top: 12px; font-size: 13.5px; }
+  .summary-box b.big { font-size: 16px; }
+
+  /* 차트 */
+  .chart-wrap { overflow-x: auto; }
+  svg text { font-family: inherit; }
+  .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 4px 0 10px; }
+  .legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .sw-blue { background: var(--chart-blue); } .sw-orange { background: var(--chart-orange); }
+  #tooltip { position: fixed; z-index: 99; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 6px; opacity: 0; transition: opacity .12s; }
+  .empty { color: var(--muted); font-size: 13.5px; padding: 12px 0; }
+  details.help { font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+  details.help summary { cursor: pointer; font-weight: 700; }
+  .foot-note { max-width: 1060px; margin: 0 auto; padding: 0 20px 48px; font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="eyebrow">매물 호가 트래킹</div>
+    <h1>아파트 시세 트래킹</h1>
+    <p>네이버 부동산에서 단지 매물 목록을 복사해 붙여넣으면 자동으로 파싱해 <b>4층 이상 최저 호가</b>(저층뿐이면 저층 표기)와 매물 수를 기록하고, 시점별 변화를 그래프로 보여줍니다.
+    데이터는 이 브라우저(로컬)에 저장됩니다. &nbsp;·&nbsp; <a href="index.html">← 세제개편 계산기로</a></p>
+  </div>
+</header>
+
+<main>
+
+<div class="card">
+  <div class="card-head"><h2>관심 단지</h2>
+    <div class="row">
+      <input type="text" id="w-name" placeholder="단지명 (예: 반포자이)" style="width:180px">
+      <input type="text" id="w-py" placeholder="평형/타입 (예: 84)" style="width:120px">
+      <button class="btn" id="w-add">추가</button>
+    </div>
+    <p class="sub">단지를 클릭하면 아래에서 매물 붙여넣기·그래프를 볼 수 있습니다. 같은 단지라도 평형별로 따로 등록하세요.</p>
+  </div>
+  <div class="card-body">
+    <div class="chart-wrap"><table class="watch" id="watch-table"></table></div>
+    <div class="empty" id="watch-empty">아직 등록된 단지가 없습니다. 위에서 단지명과 평형을 추가하세요.</div>
+  </div>
+</div>
+
+<div class="card" id="snap-card" hidden>
+  <div class="card-head"><h2 id="snap-title">매물 기록</h2>
+    <div class="row">
+      <label class="hint" for="snap-date">기록 날짜</label>
+      <input type="date" id="snap-date">
+    </div>
+    <p class="sub">네이버 부동산(<a href="https://land.naver.com" target="_blank" rel="noopener">land.naver.com</a>)에서 이 단지·평형의 매물 목록 텍스트를 드래그 복사해서 붙여넣으세요. 매매·전세가 섞여 있어도 자동 분류됩니다.</p>
+  </div>
+  <div class="card-body">
+    <textarea id="paste-box" placeholder="예)&#10;매매 44억&#10;아파트 · 138동 · 84A/59.98㎡ · 12/28층 남향&#10;전세 15억&#10;아파트 · 121동 · 84B/59.98㎡ · 저/28층 …"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="parse-btn">파싱하기</button>
+      <button class="btn ghost" id="manual-btn">매물이 없어요 (실거래·직접 입력)</button>
+      <span class="hint" id="parse-hint"></span>
+    </div>
+    <div id="preview-area"></div>
+    <div id="manual-area" hidden style="margin-top:12px">
+      <div class="row">
+        <select id="m-type"><option value="sale">매매</option><option value="jeonse">전세</option></select>
+        <input type="text" id="m-price" placeholder="금액 (만원, 예: 440,000)" style="width:190px">
+        <label class="hint"><input type="checkbox" id="m-rt" checked> 최근 3개월 실거래 평균임</label>
+        <button class="btn" id="m-save">기록 저장</button>
+      </div>
+      <p class="hint" style="margin-top:6px">매물이 없을 때는 국토부 실거래가 공개시스템(rt.molit.go.kr)에서 최근 3개월 거래를 확인해 평균을 입력하세요. "실거래" 배지로 구분 저장됩니다.</p>
+    </div>
+    <details class="help"><summary>파싱 규칙 · 정확하게 가져오는 법 (개발자도구 JSON)</summary>
+      <ul>
+        <li>가격: "매매 44억", "전세 12억 5,000", "44억5,000" 형식 인식 (월세는 제외)</li>
+        <li>층: "12/28층" 숫자층 또는 "저/중/고" 표기 인식 — <b>4층 이상 또는 중·고층</b> 매물 중 최저가를 대표 호가로 기록</li>
+        <li>4층 이상 매물이 없고 저층(1~3층·"저")만 있으면 저층 최저가를 쓰고 <b>저층 배지</b>를 붙입니다</li>
+        <li>미리보기에서 잘못 인식된 줄은 체크 해제로 제외할 수 있습니다</li>
+      </ul>
+      <b>더 정확한 방법 (PC 크롬):</b>
+      <ol>
+        <li>네이버 부동산에서 단지 매물 목록을 연 상태에서 <b>F12 → Network 탭</b> 열기</li>
+        <li>필터에 <code>articles</code> 입력 후 매물 목록을 새로고침(또는 스크롤)</li>
+        <li><code>articles?complexNo=…</code> 요청 클릭 → <b>Response 탭</b> 내용 전체 복사(Ctrl+A, Ctrl+C)</li>
+        <li>위 입력창에 붙여넣고 파싱하기 — JSON을 자동 인식해 층·가격을 정확히 읽습니다</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<div class="card" id="chart-card" hidden>
+  <div class="card-head"><h2 id="chart-title">시세 변화</h2>
+    <p class="sub">기록 시점별 대표 호가 추이입니다. 점에 마우스를 올리면 상세가 보입니다.</p>
+  </div>
+  <div class="card-body">
+    <div class="legend"><span><span class="sw sw-blue"></span>매매 최저호가</span><span><span class="sw sw-orange"></span>전세 최저호가</span></div>
+    <div class="chart-wrap" id="history-chart"></div>
+    <div class="chart-wrap" style="margin-top:14px"><table class="watch" id="history-table"></table></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>데이터 백업</h2><p class="sub">데이터는 이 브라우저에만 저장됩니다. 다른 기기에서 보려면 내보내기 → 가져오기 하세요.</p></div>
+  <div class="card-body row">
+    <button class="btn ghost" id="exp-btn">JSON 내보내기</button>
+    <label class="btn ghost" style="cursor:pointer">JSON 가져오기<input type="file" id="imp-file" accept=".json" hidden></label>
+    <span class="hint" id="io-hint"></span>
+  </div>
+</div>
+
+</main>
+<div class="foot-note">※ 호가 데이터는 사용자가 직접 복사해 붙여넣은 내용을 기록한 것으로, 자동 수집하지 않습니다. 참고용이며 실제 거래 조건과 다를 수 있습니다.</div>
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const EOK = 10000;
+function fmtMan(n) {
+  n = Math.round(n); if (!n) return '0원';
+  const sign = n < 0 ? '-' : ''; n = Math.abs(n);
+  const eok = Math.floor(n / EOK), man = n % EOK;
+  return sign + (eok ? eok.toLocaleString('ko-KR') + '억' : '') + (man ? (eok ? ' ' : '') + man.toLocaleString('ko-KR') + '만' : '') + '원';
+}
+function fmtCompact(n) {
+  n = Math.round(n); if (!n) return '-';
+  if (n >= EOK) { const e = n / EOK; return (e >= 100 ? Math.round(e).toLocaleString('ko-KR') : e.toFixed(1).replace(/\.0$/, '')) + '억'; }
+  return n.toLocaleString('ko-KR') + '만';
+}
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+/* ── 저장소 ── */
+const LS_KEY = 'zamto-tracking-v1';
+let DB = { complexes: [], snapshots: [] };
+try { const raw = localStorage.getItem(LS_KEY); if (raw) DB = JSON.parse(raw); } catch (e) {}
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
+let selId = null;
+
+/* ── 툴팁 ── */
+const tip = $('#tooltip');
+document.addEventListener('mousemove', e => {
+  const t = e.target.closest('[data-tip]');
+  if (t) { tip.textContent = t.dataset.tip; tip.style.opacity = '1';
+    tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+  } else tip.style.opacity = '0';
+});
+
+/* ── 관심 단지 ── */
+function latestSnap(cid, type) {
+  const list = DB.snapshots.filter(s => s.cid === cid && s[type]).sort((a, b) => a.date < b.date ? 1 : -1);
+  return { cur: list[0], prev: list[1] };
+}
+function deltaHtml(cur, prev, type) {
+  if (!cur || !prev) return '<span class="delta-0">—</span>';
+  const d = cur[type].price - prev[type].price;
+  if (!d) return '<span class="delta-0">0</span>';
+  return `<span class="${d > 0 ? 'delta-up' : 'delta-dn'}">${d > 0 ? '▲' : '▼'} ${fmtCompact(Math.abs(d))}</span>`;
+}
+function snapCellHtml(s, type) {
+  if (!s || !s[type]) return '<span class="delta-0">—</span>';
+  const v = s[type];
+  return `<b>${fmtCompact(v.price)}</b>` +
+    (v.lowOnly ? ' <span class="badge low">저층</span>' : '') +
+    (v.rt ? ' <span class="badge rt">실거래</span>' : '') +
+    (v.count != null ? ` <span class="hint">(${v.count}건)</span>` : '');
+}
+function renderWatch() {
+  const tb = $('#watch-table');
+  if (!DB.complexes.length) { tb.innerHTML = ''; $('#watch-empty').style.display = ''; return; }
+  $('#watch-empty').style.display = 'none';
+  tb.innerHTML = '<tr><th>단지</th><th class="r">매매 호가</th><th class="r">전회비</th><th class="r">전세 호가</th><th class="r">전회비</th><th class="r">전세가율</th><th class="r">전고점比</th><th class="r">기록일</th><th class="r"></th></tr>' +
+    DB.complexes.map(c => {
+      const sale = latestSnap(c.id, 'sale'), js = latestSnap(c.id, 'jeonse');
+      const last = [sale.cur, js.cur].filter(Boolean).sort((a, b) => a.date < b.date ? 1 : -1)[0];
+      const ratio = sale.cur && sale.cur.sale && js.cur && js.cur.jeonse ? Math.round(js.cur.jeonse.price / sale.cur.sale.price * 100) + '%' : '—';
+      const peaks = DB.snapshots.filter(s => s.cid === c.id && s.sale).map(s => s.sale.price);
+      const peak = peaks.length ? Math.max(...peaks) : 0;
+      const vsPeak = peak && sale.cur ? Math.round((sale.cur.sale.price / peak - 1) * 100) : null;
+      return `<tr class="${c.id === selId ? 'sel-row' : ''}">
+        <td><button class="nm-btn" data-sel="${c.id}">${c.name}<span class="py">${c.py || ''}</span></button></td>
+        <td class="r">${snapCellHtml(sale.cur, 'sale')}</td><td class="r">${deltaHtml(sale.cur, sale.prev, 'sale')}</td>
+        <td class="r">${snapCellHtml(js.cur, 'jeonse')}</td><td class="r">${deltaHtml(js.cur, js.prev, 'jeonse')}</td>
+        <td class="r">${ratio}</td>
+        <td class="r">${vsPeak === null ? '—' : vsPeak === 0 ? '<span class="delta-0">전고점</span>' : `<span class="${vsPeak < 0 ? 'delta-dn' : 'delta-up'}">${vsPeak}%</span>`}</td>
+        <td class="r hint">${last ? last.date : '—'}</td>
+        <td class="r"><button class="btn ghost small" data-del="${c.id}">삭제</button></td></tr>`;
+    }).join('');
+  tb.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => selectComplex(b.dataset.sel)));
+  tb.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    const c = DB.complexes.find(x => x.id === b.dataset.del);
+    if (!confirm(`'${c.name} ${c.py || ''}' 단지와 기록을 모두 삭제할까요?`)) return;
+    DB.complexes = DB.complexes.filter(x => x.id !== b.dataset.del);
+    DB.snapshots = DB.snapshots.filter(s => s.cid !== b.dataset.del);
+    if (selId === b.dataset.del) { selId = null; $('#snap-card').hidden = true; $('#chart-card').hidden = true; }
+    save(); renderWatch();
+  }));
+}
+$('#w-add').addEventListener('click', () => {
+  const name = $('#w-name').value.trim(), py = $('#w-py').value.trim();
+  if (!name) { $('#w-name').focus(); return; }
+  const id = 'c' + Date.now();
+  DB.complexes.push({ id, name, py });
+  $('#w-name').value = ''; $('#w-py').value = '';
+  save(); renderWatch(); selectComplex(id);
+});
+function selectComplex(id) {
+  selId = id;
+  const c = DB.complexes.find(x => x.id === id); if (!c) return;
+  $('#snap-card').hidden = false; $('#chart-card').hidden = false;
+  $('#snap-title').textContent = `${c.name} ${c.py || ''} — 매물 기록`;
+  $('#chart-title').textContent = `${c.name} ${c.py || ''} — 시세 변화`;
+  $('#snap-date').value = todayStr();
+  $('#paste-box').value = ''; $('#preview-area').innerHTML = ''; $('#parse-hint').textContent = '';
+  $('#manual-area').hidden = true;
+  renderWatch(); renderHistory();
+  $('#snap-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── 네이버 매물 텍스트 파싱 ── */
+function parsePrice(str) { // "44억", "12억 5,000", "44억5,000", "5,000" → 만원
+  let m = str.match(/(\d[\d,]*)\s*억\s*([\d,]{3,})?/);
+  if (m) return parseInt(m[1].replace(/,/g, ''), 10) * EOK + (m[2] ? parseInt(m[2].replace(/,/g, ''), 10) : 0);
+  m = str.match(/([\d,]{4,})\s*만?/);
+  if (m) return parseInt(m[1].replace(/,/g, ''), 10);
+  return null;
+}
+function parseListings(text) {
+  // 유형 키워드 기준으로 청크 분할
+  const out = [];
+  const re = /(매매|전세|월세)/g;
+  const idx = [];
+  let m; while ((m = re.exec(text))) idx.push({ t: m[1], i: m.index });
+  for (let k = 0; k < idx.length; k++) {
+    const chunk = text.slice(idx[k].i, idx[k + 1] ? idx[k + 1].i : Math.min(text.length, idx[k].i + 400));
+    const type = idx[k].t;
+    if (type === '월세') continue;
+    const price = parsePrice(chunk.slice(2));
+    if (!price || price < 100) continue;
+    let floorRaw = null, floorNum = null, low = null;
+    const fm = chunk.match(/(\d{1,3}|저|중|고)\s*\/\s*\d{1,3}\s*층/);
+    if (fm) {
+      floorRaw = fm[0].replace(/\s/g, '');
+      if (/^\d/.test(fm[1])) { floorNum = parseInt(fm[1], 10); low = floorNum < 4; }
+      else low = fm[1] === '저';
+    } else {
+      const fm2 = chunk.match(/(\d{1,3})층/);
+      if (fm2) { floorNum = parseInt(fm2[1], 10); floorRaw = fm2[0]; low = floorNum < 4; }
+    }
+    const am = chunk.match(/(\d{2,3}[A-Za-z]?)\s*\/\s*(\d{2,3}(?:\.\d+)?)\s*㎡/);
+    out.push({ type: type === '매매' ? 'sale' : 'jeonse', price, floorRaw: floorRaw || '?', low, area: am ? am[0].replace(/\s/g, '') : '', use: true });
+  }
+  return out;
+}
+function tryParseNaverJson(text) { // 개발자도구 Network 응답(JSON) 붙여넣기 지원
+  let data = null;
+  const attempt = s => { try { return JSON.parse(s); } catch (e) { return null; } };
+  data = attempt(text.trim());
+  if (!data) {
+    const i = text.indexOf('{'), j = text.lastIndexOf('}');
+    if (i >= 0 && j > i) data = attempt(text.slice(i, j + 1));
+  }
+  if (!data) return null;
+  const list = data.articleList || (data.body && data.body.articleList) || (Array.isArray(data) ? data : null);
+  if (!list || !list.length || !list[0].tradeTypeName) return null;
+  return list.map(a => {
+    if (a.tradeTypeName !== '매매' && a.tradeTypeName !== '전세') return null;
+    const price = parsePrice(String(a.dealOrWarrantPrc || ''));
+    if (!price || price < 100) return null;
+    let low = null, floorRaw = a.floorInfo ? a.floorInfo + '층' : '?';
+    const fm = String(a.floorInfo || '').match(/^(\d+|저|중|고)\//);
+    if (fm) { if (/\d/.test(fm[1])) low = parseInt(fm[1], 10) < 4; else low = fm[1] === '저'; }
+    return { type: a.tradeTypeName === '매매' ? 'sale' : 'jeonse', price, floorRaw, low,
+      area: a.areaName ? a.areaName + (String(a.areaName).match(/㎡$/) ? '' : '㎡') : '', use: true };
+  }).filter(Boolean);
+}
+let parsed = [];
+$('#parse-btn').addEventListener('click', () => {
+  const text = $('#paste-box').value;
+  if (!text.trim()) { $('#parse-hint').textContent = '먼저 매물 목록 텍스트를 붙여넣으세요.'; $('#parse-hint').className = 'hint err'; return; }
+  parsed = tryParseNaverJson(text) || parseListings(text);
+  if (!parsed.length) { $('#parse-hint').textContent = '매물을 인식하지 못했습니다. "매매 44억"처럼 유형+가격이 포함된 텍스트인지 확인해 주세요.'; $('#parse-hint').className = 'hint err'; $('#preview-area').innerHTML = ''; return; }
+  $('#parse-hint').textContent = `${parsed.length}건 인식됨 — 아래 미리보기 확인 후 저장하세요.`; $('#parse-hint').className = 'hint';
+  renderPreview();
+});
+function ruleSummary(list, type) {
+  const pool = list.filter(l => l.use && l.type === type);
+  if (!pool.length) return null;
+  const upper = pool.filter(l => l.low === false);
+  const usable = upper.length ? upper : pool;
+  const lowOnly = !upper.length;
+  const best = usable.reduce((a, b) => a.price <= b.price ? a : b);
+  return { price: best.price, floorRaw: best.floorRaw, lowOnly, count: pool.length };
+}
+function renderPreview() {
+  const sale = ruleSummary(parsed, 'sale'), js = ruleSummary(parsed, 'jeonse');
+  $('#preview-area').innerHTML =
+    '<table class="preview"><tr><th></th><th>유형</th><th>가격</th><th>층</th><th>면적</th><th>판정</th></tr>' +
+    parsed.map((l, i) => `<tr class="${l.use ? '' : 'excluded'}">
+      <td><input type="checkbox" data-i="${i}" ${l.use ? 'checked' : ''}></td>
+      <td>${l.type === 'sale' ? '매매' : '전세'}</td><td class="num">${fmtMan(l.price)}</td>
+      <td>${l.floorRaw}</td><td>${l.area}</td>
+      <td>${l.low === true ? '저층' : l.low === false ? '4층↑' : '층 미상'}</td></tr>`).join('') +
+    '</table>' +
+    `<div class="summary-box" id="rule-summary">
+      ${sale ? `매매 대표 호가: <b class="big">${fmtMan(sale.price)}</b> (${sale.floorRaw}${sale.lowOnly ? ' · <span class="badge low">저층 매물뿐</span>' : ''} · 매물 ${sale.count}건)` : '매매 매물 없음'}<br>
+      ${js ? `전세 대표 호가: <b class="big">${fmtMan(js.price)}</b> (${js.floorRaw}${js.lowOnly ? ' · <span class="badge low">저층 매물뿐</span>' : ''} · 매물 ${js.count}건)` : '전세 매물 없음'}
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="snap-save">이 내용으로 기록 저장</button></div>`;
+  $('#preview-area').querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', () => { parsed[+cb.dataset.i].use = cb.checked; renderPreview(); }));
+  $('#snap-save').addEventListener('click', () => {
+    const sale2 = ruleSummary(parsed, 'sale'), js2 = ruleSummary(parsed, 'jeonse');
+    if (!sale2 && !js2) return;
+    addSnapshot({ sale: sale2, jeonse: js2 });
+    $('#preview-area').innerHTML = ''; $('#paste-box').value = '';
+    $('#parse-hint').textContent = '저장되었습니다.'; $('#parse-hint').className = 'hint';
+  });
+}
+function addSnapshot(data) {
+  const date = $('#snap-date').value || todayStr();
+  // 같은 날짜 기록은 덮어쓰기 (유형별 병합)
+  let snap = DB.snapshots.find(s => s.cid === selId && s.date === date);
+  if (!snap) { snap = { cid: selId, date }; DB.snapshots.push(snap); }
+  if (data.sale) snap.sale = data.sale;
+  if (data.jeonse) snap.jeonse = data.jeonse;
+  save(); renderWatch(); renderHistory();
+}
+
+/* ── 매물 없음 → 실거래/직접 입력 ── */
+$('#manual-btn').addEventListener('click', () => { $('#manual-area').hidden = !$('#manual-area').hidden; });
+$('#m-save').addEventListener('click', () => {
+  const price = parseInt($('#m-price').value.replace(/[^\d]/g, ''), 10);
+  if (!price) { $('#m-price').focus(); return; }
+  const type = $('#m-type').value;
+  addSnapshot({ [type]: { price, floorRaw: '-', lowOnly: false, count: 0, rt: $('#m-rt').checked } });
+  $('#m-price').value = '';
+  $('#parse-hint').textContent = '저장되었습니다.'; $('#parse-hint').className = 'hint';
+});
+$('#m-price').addEventListener('input', () => {
+  const v = parseInt($('#m-price').value.replace(/[^\d]/g, ''), 10);
+  $('#m-price').value = v ? v.toLocaleString('ko-KR') : '';
+});
+
+/* ── 히스토리 그래프 + 표 ── */
+function renderHistory() {
+  const snaps = DB.snapshots.filter(s => s.cid === selId).sort((a, b) => a.date < b.date ? -1 : 1);
+  const wrap = $('#history-chart'), tb = $('#history-table');
+  if (!snaps.length) { wrap.innerHTML = '<div class="empty">아직 기록이 없습니다. 위에서 매물을 붙여넣어 첫 기록을 저장하세요.</div>'; tb.innerHTML = ''; return; }
+  // SVG 라인 차트
+  const W = Math.max(560, snaps.length * 90 + 80), H = 240, P = { l: 56, r: 16, t: 16, b: 34 };
+  const vals = snaps.flatMap(s => [s.sale && s.sale.price, s.jeonse && s.jeonse.price]).filter(Boolean);
+  const vMax = Math.max(...vals) * 1.08, vMin = Math.max(0, Math.min(...vals) * 0.9);
+  const x = i => P.l + (snaps.length === 1 ? (W - P.l - P.r) / 2 : i * (W - P.l - P.r) / (snaps.length - 1));
+  const y = v => P.t + (H - P.t - P.b) * (1 - (v - vMin) / (vMax - vMin || 1));
+  const line = (type, color) => {
+    const pts = snaps.map((s, i) => s[type] ? [x(i), y(s[type].price), s, i] : null).filter(Boolean);
+    if (!pts.length) return '';
+    return `<polyline fill="none" stroke="${color}" stroke-width="2" points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}"/>` +
+      pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2" data-tip="${p[2].date} · ${type === 'sale' ? '매매' : '전세'} ${fmtMan(p[2][type].price)}${p[2][type].lowOnly ? ' (저층)' : ''}${p[2][type].rt ? ' (실거래)' : ''}"/>`).join('');
+  };
+  const grid = [0, .25, .5, .75, 1].map(f => { const v = vMin + (vMax - vMin) * f, yy = y(v);
+    return `<line x1="${P.l}" y1="${yy}" x2="${W - P.r}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${P.l - 6}" y="${yy + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${fmtCompact(v)}</text>`; }).join('');
+  const xlab = snaps.map((s, i) => `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="var(--muted)">${s.date.slice(2)}</text>`).join('');
+  wrap.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="시세 변화 라인 차트">${grid}${xlab}${line('sale', 'var(--chart-blue)')}${line('jeonse', 'var(--chart-orange)')}</svg>`;
+  // 표
+  tb.innerHTML = '<tr><th>날짜</th><th class="r">매매</th><th class="r">전세</th><th class="r">갭 (매-전)</th><th class="r">전세가율</th><th class="r"></th></tr>' +
+    snaps.slice().reverse().map(s => `<tr>
+      <td>${s.date}</td>
+      <td class="r">${snapCellHtml(s, 'sale')}</td><td class="r">${snapCellHtml(s, 'jeonse')}</td>
+      <td class="r">${s.sale && s.jeonse ? fmtCompact(s.sale.price - s.jeonse.price) : '—'}</td>
+      <td class="r">${s.sale && s.jeonse ? Math.round(s.jeonse.price / s.sale.price * 100) + '%' : '—'}</td>
+      <td class="r"><button class="btn ghost small" data-deldate="${s.date}">삭제</button></td></tr>`).join('');
+  tb.querySelectorAll('[data-deldate]').forEach(b => b.addEventListener('click', () => {
+    DB.snapshots = DB.snapshots.filter(s => !(s.cid === selId && s.date === b.dataset.deldate));
+    save(); renderWatch(); renderHistory();
+  }));
+}
+
+/* ── 백업 ── */
+$('#exp-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'zamto-tracking-' + todayStr() + '.json'; a.click();
+  URL.revokeObjectURL(a.href);
+  $('#io-hint').textContent = '내보내기 완료';
+});
+$('#imp-file').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!Array.isArray(d.complexes) || !Array.isArray(d.snapshots)) throw new Error('형식 오류');
+      DB = d; save(); selId = null; $('#snap-card').hidden = true; $('#chart-card').hidden = true;
+      renderWatch(); $('#io-hint').textContent = `가져오기 완료 (단지 ${d.complexes.length}개, 기록 ${d.snapshots.length}건)`;
+    } catch (err) { $('#io-hint').textContent = '가져오기 실패: 올바른 백업 파일이 아닙니다.'; }
+  };
+  r.readAsText(f);
+});
+
+renderWatch();
+</script>
+</body>
+</html>
