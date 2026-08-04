@@ -152,7 +152,7 @@
   .money-input .unit { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; font-weight: 600; }
   .hint { margin-top: 4px; font-size: 12.5px; color: var(--accent-deep); font-weight: 600; min-height: 1em; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  input[type="number"], select {
+  input[type="date"], input[type="number"], select {
     width: 100%; font: inherit; font-size: 15px; font-weight: 600; color: var(--ink);
     background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px 12px;
   }
@@ -303,6 +303,11 @@
           <div class="hint" id="y-exp-h"></div>
         </div>
         <div class="row2">
+          <div class="field"><label for="y-buy-date">매수시점 (취득일)</label><input type="date" id="y-buy-date"></div>
+          <div class="field"><label for="y-sale-date">매도시점 (양도 예정일)</label><input type="date" id="y-sale-date"></div>
+        </div>
+        <div class="hint" id="y-date-h" style="margin:-8px 0 12px">날짜를 입력하면 보유기간(만 연수)과 적용 시점이 자동 반영됩니다. 직접 입력도 가능합니다.</div>
+        <div class="row2">
           <div class="field"><label for="y-hold">보유기간 (년)</label><input type="number" id="y-hold" min="0" max="50" value="10"></div>
           <div class="field"><label for="y-live">거주기간 (년)</label><input type="number" id="y-live" min="0" max="50" value="5"></div>
         </div>
@@ -327,6 +332,13 @@
         <p class="chart-sub">막대에 마우스를 올리면 금액이 표시됩니다. 선택한 시점이 주황색으로 강조됩니다.</p>
         <div class="yr-chart" id="y-chart" role="img" aria-label="적용 시점별 양도소득세 비교 막대그래프"></div>
         <div class="yr-axis"></div>
+      </div>
+      <div class="chart-block" id="live-cmp-block">
+        <h3 class="chart-title">거주 vs 미거주 — 실거주가 만드는 세액 차이</h3>
+        <p class="chart-sub" id="live-cmp-sub"></p>
+        <div class="legend"><span><span class="sw sw-blue"></span>미거주 (거주 0년)</span><span><span class="sw sw-orange"></span>계속 거주 (보유기간 내내)</span></div>
+        <div class="gchart" id="live-cmp" style="height:180px" role="img" aria-label="거주 여부에 따른 양도소득세 비교 막대그래프"></div>
+        <div class="chart-sub" id="live-cmp-note" style="margin-top:10px"></div>
       </div>
     </div>
   </div>
@@ -660,6 +672,40 @@ function renderYangdo() {
   // 연도별 비교 차트
   const data = [0, 26, 27, 28, 29].map(yy => ({ yy, v: calcYangdo(yy, inp).total }));
   drawYearChart('#y-chart', data, y);
+  drawLiveCompare(inp);
+}
+
+/* 거주 vs 미거주 세액 비교 (개편 단계별) */
+function drawLiveCompare(inp) {
+  const block = $('#live-cmp-block');
+  const gain = inp.sale - inp.buy - inp.exp;
+  if (gain <= 0) { block.style.display = 'none'; return; }
+  block.style.display = '';
+  const noLive = { ...inp, live: 0 };
+  const fullLive = { ...inp, live: inp.hold };
+  const scenarios = [{ y: 0, lab: '현행·’26' }, { y: 27, lab: '’27년' }, { y: 28, lab: '’28년' }, { y: 29, lab: '’29년~' }];
+  const data = scenarios.map(s => ({ ...s, a: calcYangdo(s.y, noLive).total, b: calcYangdo(s.y, fullLive).total }));
+  const max = Math.max(...data.flatMap(d => [d.a, d.b]), 1);
+  $('#live-cmp-sub').textContent = `같은 집(보유 ${inp.hold}년)을 한 번도 거주하지 않고 팔 때와 보유기간 내내 거주하고 팔 때의 총 세액입니다.`;
+  $('#live-cmp').innerHTML = data.map(d => `
+    <div class="gcol">
+      <div class="gbars">
+        <div class="gbar b" style="height:${Math.max(1.5, d.a / max * 100)}%" data-tip="${d.lab} · 미거주: ${fmtMan(d.a)}"><span class="bar-val">${fmtCompact(d.a)}</span></div>
+        <div class="gbar o" style="height:${Math.max(1.5, d.b / max * 100)}%" data-tip="${d.lab} · 계속 거주: ${fmtMan(d.b)}"><span class="bar-val">${fmtCompact(d.b)}</span></div>
+      </div>
+      <div class="gx">${d.lab}<br><b>거주 시 −${fmtCompact(d.a - d.b)}</b></div>
+    </div>`).join('');
+  const cur = data[0], last = data[3];
+  const heavy = inp.adj && inp.homes >= 2;
+  let note;
+  if (heavy) {
+    note = '조정대상지역 다주택 중과 대상은 장기보유특별공제가 배제되어 거주 여부의 영향이 제한적입니다.';
+  } else {
+    const worse = last.a - cur.a;
+    note = `’29년~ 기준 계속 거주하면 미거주 대비 <b>${fmtMan(last.a - last.b)}</b>을 아낍니다.` +
+      (worse > 0 ? ` 반대로 거주하지 않으면 개편 전보다 세 부담이 <b>${fmtMan(worse)}</b> 늘어납니다(현행 ${fmtMan(cur.a)} → ’29년 ${fmtMan(last.a)}).` : '');
+  }
+  $('#live-cmp-note').innerHTML = note + (inp.homes === 1 ? ' <span class="note-inline">※ 미거주 시에도 1세대 1주택 비과세(보유 2년) 요건은 충족한다고 가정. 10년 이상 거주 시 기본공제 확대(연 2,500만원)도 반영됨.</span>' : '');
 }
 
 /* ───────── 종합부동산세 ───────── */
@@ -870,6 +916,33 @@ function drawStaticCharts() {
   mkRate('#c-rate12', J_RATES.cur12, J_RATES.y28);
   mkRate('#c-rate3', J_RATES.cur3, J_RATES.y28);
 }
+
+/* ───────── 매수·매도 시점 → 보유기간·적용 시점 자동 반영 ───────── */
+function setSeg(id, v) {
+  $(id).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === v ? 'true' : 'false'));
+}
+function fullYearsBetween(a, b) { // 만 연수 (기념일 도래 전이면 -1)
+  let y = b.getFullYear() - a.getFullYear();
+  if (b.getMonth() < a.getMonth() || (b.getMonth() === a.getMonth() && b.getDate() < a.getDate())) y--;
+  return Math.max(0, y);
+}
+function updateFromDates() {
+  const bv = $('#y-buy-date').value, sv = $('#y-sale-date').value;
+  const h = $('#y-date-h');
+  if (!bv || !sv) return;
+  const bd = new Date(bv), sd = new Date(sv);
+  if (sd <= bd) { h.textContent = '매도시점이 매수시점보다 빠릅니다 — 날짜를 확인하세요.'; return; }
+  const years = fullYearsBetween(bd, sd);
+  $('#y-hold').value = years;
+  if (+$('#y-live').value > years) $('#y-live').value = years;
+  const sy = sd.getFullYear();
+  const yv = sy <= 2026 ? 26 : sy === 2027 ? 27 : sy === 2028 ? 28 : 29;
+  setSeg('#y-year', yv);
+  h.textContent = `보유 만 ${years}년 · 매도 ${sy}년 → ${yv === 26 ? '’26년(개편 전 규정)' : '’' + String(yv) + '년'} 기준 자동 적용됨`;
+  recalcAll();
+}
+$('#y-buy-date').addEventListener('change', updateFromDates);
+$('#y-sale-date').addEventListener('change', updateFromDates);
 
 /* ───────── 아파트 공시가격 검색 (국토교통부 공동주택가격 · V-World OpenAPI) ───────── */
 const VW_KEY = '6BBA2F4B-174B-382C-BABC-49C3418883D2'; // 도메인 제한 발급키 (taesudal.github.io)
